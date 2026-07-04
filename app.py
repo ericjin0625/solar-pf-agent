@@ -179,44 +179,103 @@ with tabs[0]:
     st.info("💡 위의 상단 탭을 이용하여 각 시트(Worksheet) 간을 자유롭게 이동하며 금융 모델을 모니터링할 수 있습니다.")
 
 # -----------------------------------------------------------------------------
-# TAB 2: INPUTS (입력변수)
+# TAB 2: INPUTS (입력변수 - Abacus 100% 구현판 + 물류센터 루프탑 특화)
 # -----------------------------------------------------------------------------
 with tabs[1]:
-    st.header("📋 프로젝트 투자 가상 변수 설정 (Assumptions)")
-    st.write("여기서 수치를 변경하면 모든 탭의 재무제표와 수익률 지표가 실시간으로 자동 연동 및 리스컬프팅(Re-sculpting)됩니다.")
+    st.header("📋 프로젝트 모델 입력 변수 (Inputs)")
+    st.write("Abacus 모델의 Inputs 시트 원본 구조(거시경제, 운전자본, 적립금 포함)를 100% 반영한 상세 설정 화면입니다.")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("⚡ 발전 설비 및 매출 변수")
-        st.session_state.capacity = st.number_input("총 설비 용량 (MW)", value=st.session_state.capacity, step=1.0)
-        st.session_state.tariff = st.number_input("PPA Tariff (USD/kWh)", value=st.session_state.tariff, format="%.4f", step=0.005)
-        st.session_state.rec_weight = st.slider("루프탑 REC 가중치", min_value=1.0, max_value=2.0, value=st.session_state.rec_weight, step=0.1)
-        st.session_state.gen_hours = st.number_input("일평균 발전시간 (시간)", value=st.session_state.gen_hours, step=0.1)
-        st.session_state.degradation = st.number_input("연간 모듈 성능 열화율 (%)", value=st.session_state.degradation, step=0.1)
-        
-        st.subheader("🏢 루프탑 특화 비용 변수")
-        st.session_state.capex = st.number_input("총사업비 CAPEX (USD)", value=st.session_state.capex, step=100000.0)
-        st.session_state.opex_base = st.number_input("기본 운영비 OPEX (USD/년)", value=st.session_state.opex_base, step=10000.0)
-        st.session_state.roof_lease_rate = st.slider("물류센터 지붕 임대료 비율 (% of 매출)", min_value=0.0, max_value=20.0, value=st.session_state.roof_lease_rate, step=0.5)
+    # 1. General (기본 정보)
+    with st.expander("1. General (기본 정보)", expanded=True):
+        g_col1, g_col2 = st.columns(2)
+        with g_col1:
+            st.text_input("Project Name (프로젝트명)", value="Sample PV Project (물류센터 루프탑)")
+            st.selectbox("Chosen Scenario (시나리오 선택)", ["Base Case", "P90 Yield", "P99 Yield", "10% Tariff Reduction", "50% Increase in O&M"])
+        with g_col2:
+            st.text_input("Location (위치)", value="City, State, Country")
+            st.session_state.capacity = st.number_input("Capacity (총 설비 용량 - MW)", value=20.0, step=1.0)
 
-    with col2:
-        st.subheader("🏦 타인자본 조달 및 PF 조건 (Debt Sculpting)")
-        st.session_state.target_dscr = st.number_input("목표 원리금상환커버리지비율 (Target DSCR)", value=st.session_state.target_dscr, step=0.05)
-        st.session_state.interest_rate = st.number_input("PF 대출 금리 (%)", value=st.session_state.interest_rate, step=0.1)
-        st.session_state.loan_tenor = st.number_input("대출 만기 / 운영 기간 (년)", value=st.session_state.loan_tenor, min_value=5, max_value=30, step=1)
-        
-        st.subheader("⚖️ 세무 및 기타 변수")
-        st.session_state.tax_rate = st.number_input("법인세율 (%)", value=st.session_state.tax_rate, step=1.0)
+    # 2. Timing (일정 변수)
+    with st.expander("2. Timing (일정 및 날짜 변수)", expanded=False):
+        t_col1, t_col2, t_col3 = st.columns(3)
+        import datetime
+        with t_col1:
+            st.markdown("**Development & Construction**")
+            st.date_input("Model Beginning Date", datetime.date(2021, 3, 15))
+            st.date_input("Construction Start Date", datetime.date(2021, 4, 15))
+            st.number_input("Construction Period (Months)", value=8)
+            st.date_input("Commercial Operation Date (COD)", datetime.date(2021, 12, 15))
+        with t_col2:
+            st.markdown("**Power Purchase Agreement (PPA)**")
+            st.session_state.loan_tenor = st.number_input("PPA Term (Years)", value=20)
+            st.date_input("PPA End Date", datetime.date(2041, 12, 15))
+        with t_col3:
+            st.markdown("**Financing Dates (자금조달 일정)**")
+            st.date_input("Loan Execution Date", datetime.date(2021, 4, 15))
+            st.date_input("First Disbursement Date", datetime.date(2021, 6, 30))
 
-# 현재 세션 상태를 딕셔너리로 패킹하여 모델 구동
-current_inputs = {
-    'capacity': st.session_state.capacity, 'tariff': st.session_state.tariff, 'rec_weight': st.session_state.rec_weight,
-    'gen_hours': st.session_state.gen_hours, 'degradation': st.session_state.degradation, 'capex': st.session_state.capex,
-    'opex_base': st.session_state.opex_base, 'roof_lease_rate': st.session_state.roof_lease_rate, 'target_dscr': st.session_state.target_dscr,
-    'interest_rate': st.session_state.interest_rate, 'loan_tenor': st.session_state.loan_tenor, 'tax_rate': st.session_state.tax_rate
-}
-res = run_financial_model(current_inputs)
+    # 3. Macroeconomics & Working Capital (거시경제 및 운전자본 - 원본 복원)
+    with st.expander("3. Macroeconomics & Working Capital (거시경제 및 운전자본)", expanded=False):
+        mw_col1, mw_col2 = st.columns(2)
+        with mw_col1:
+            st.markdown("**Macroeconomics**")
+            st.number_input("General Inflation (% / yr)", value=2.0, step=0.1)
+        with mw_col2:
+            st.markdown("**Working Capital (운전자본 회수/결제기간)**")
+            st.number_input("Accounts Receivable (매출채권 회수 - Months)", value=1, min_value=0)
+            st.number_input("Accounts Payable (매입채무 결제 - Months)", value=1, min_value=0)
+
+    # 4. Operations (운영: 매출 및 비용)
+    with st.expander("4. Operations (운영 매출 및 OPEX)", expanded=True):
+        o_col1, o_col2 = st.columns(2)
+        with o_col1:
+            st.markdown("**Revenues (매출)**")
+            st.selectbox("Energy Yield Scenario", ["P50", "P90", "P99"], index=0)
+            st.session_state.tariff = st.number_input("PPA Tariff (USD / kWh)", value=0.075, format="%.4f")
+            st.number_input("PPA Tariff Escalation Rate (% / yr)", value=2.0)
+            st.session_state.degradation = st.number_input("Degradation (% / yr)", value=0.5)
+            st.session_state.rec_weight = st.number_input("[루프탑 전용] REC 가중치", value=1.5, step=0.1)
+        with o_col2:
+            st.markdown("**Operating Expenses (OPEX)**")
+            st.session_state.opex_base = st.number_input("O&M Cost (USD / yr)", value=450000.0)
+            st.number_input("O&M Cost Escalation Rate (% / yr)", value=2.0)
+            st.session_state.roof_lease_rate = st.number_input("[루프탑 전용] 지붕 임대료 (% of Revenue)", value=10.0)
+
+    # 5. Financing & Reserves (자금 조달 및 적립금 - 원본 복원)
+    with st.expander("5. Financing & Reserve Accounts (자금 조달 및 적립금)", expanded=True):
+        f_col1, f_col2, f_col3 = st.columns(3)
+        with f_col1:
+            st.markdown("**Debt Sizing (Sculpting)**")
+            st.session_state.target_dscr = st.number_input("Target Sculpted DSCR", value=1.30, step=0.05)
+            st.number_input("Maximum Leverage (%)", value=80.0)
+            st.number_input("Loan Life Coverage Ratio (LLCR)", value=1.35)
+        with f_col2:
+            st.markdown("**Senior Debt Terms (상세 대출 조건)**")
+            st.session_state.interest_rate = st.number_input("Interest Rate (%)", value=4.5, step=0.1)
+            st.number_input("Upfront Fee (%)", value=1.5, step=0.1, help="대출취급수수료")
+            st.number_input("Commitment Fee (%)", value=0.5, step=0.1, help="미인출수수료")
+            st.number_input("Loan Tenor (Years)", value=18)
+        with f_col3:
+            st.markdown("**Reserve Accounts (적립금)**")
+            st.number_input("DSRA Target (원리금상환적립금 - Months)", value=6, min_value=0, help="보통 6개월치 원리금 유보")
+            st.number_input("MRA / O&M Reserve (Months)", value=3, min_value=0)
+
+    # 6. Depreciation and Tax (감가상각 및 세금)
+    with st.expander("6. Depreciation and Tax (감가상각 및 세금)", expanded=False):
+        dt_col1, dt_col2 = st.columns(2)
+        with dt_col1:
+            st.markdown("**Book & Tax Depreciation (Straight Line)**")
+            st.number_input("Capex Depreciation Period (Years)", value=20)
+            st.number_input("Financing Cost Depr. Period (Years)", value=17.5833, format="%.4f")
+        with dt_col2:
+            st.markdown("**Tax Rates & Payment Dates**")
+            st.session_state.tax_rate = st.number_input("Corporate Tax Rate (%)", value=20.0, step=1.0)
+            st.multiselect(
+                "Corporate Tax Payment Dates (Months)", 
+                options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                default=[4, 6, 9, 12],
+                help="분기별 법인세 납부월"
+            )
 
 # -----------------------------------------------------------------------------
 # TAB 3: SUMMARY (요약)
